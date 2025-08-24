@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Air Cargo Booking & Tracking</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .loading, .modal-overlay {
+            display: none;
+        }
+        .loading.active, .modal-overlay.active {
+            display: flex;
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .status-booked { background-color: #3B82F6; }
+        .status-departed { background-color: #F59E0B; }
+        .status-arrived { background-color: #10B981; }
+        .status-delivered { background-color: #059669; }
+        .status-cancelled { background-color: #EF4444; }
+        
+        .timeline {
+            position: relative;
+        }
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 20px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #e5e7eb;
+        }
+        .timeline-item {
+            position: relative;
+            padding-left: 50px;
+            margin-bottom: 20px;
+        }
+        .timeline-marker {
+            position: absolute;
+            left: 12px;
+            top: 8px;
+            width: 16px;
+            height: 16px;
+            background: white;
+            border: 3px solid #3B82F6;
+            border-radius: 50%;
+        }
+        .timeline-marker.completed {
+            background: #3B82F6;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-blue-600 text-white shadow-lg">
+        <div class="container mx-auto px-4 py-6">
+            <div class="flex items-center justify-between">
+                <h1 class="text-3xl font-bold flex items-center">
+                    <i class="fas fa-plane mr-3"></i>
+                    Air Cargo Booking & Tracking
+                </h1>
+                <div class="flex space-x-4">
+                    <button id="newBookingBtn" class="bg-white text-blue-600 px-4 py-2 rounded-lg font-medium hover:bg-gray-100 transition">
+                        <i class="fas fa-plus mr-2"></i>New Booking
+                    </button>
+                    <button id="searchBookingBtn" class="bg-blue-700 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-800 transition">
+                        <i class="fas fa-search mr-2"></i>Track Booking
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center">
+        <div class="bg-white rounded-lg p-6 flex items-center">
+            <i class="fas fa-spinner fa-spin text-blue-600 text-2xl mr-3"></i>
+            <span class="text-lg">Processing...</span>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8">
+        
+        <!-- Dashboard -->
+        <div id="dashboard" class="mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-600 text-sm font-medium">Total Bookings</p>
+                            <p id="totalBookings" class="text-2xl font-bold text-gray-900">-</p>
+                        </div>
+                        <div class="bg-blue-100 p-3 rounded-lg">
+                            <i class="fas fa-box text-blue-600 text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-600 text-sm font-medium">Active Routes</p>
+                            <p id="activeRoutes" class="text-2xl font-bold text-gray-900">-</p>
+                        </div>
+                        <div class="bg-green-100 p-3 rounded-lg">
+                            <i class="fas fa-route text-green-600 text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-600 text-sm font-medium">Delivery Rate</p>
+                            <p id="deliveryRate" class="text-2xl font-bold text-gray-900">-</p>
+                        </div>
+                        <div class="bg-purple-100 p-3 rounded-lg">
+                            <i class="fas fa-chart-line text-purple-600 text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create Booking Section -->
+        <div id="createBookingSection" class="hidden">
+            <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+                <h2 class="text-2xl font-bold text-gray-900 mb-6">Create New Booking</h2>
+                
+                <!-- Route Search -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Origin</label>
+                        <select id="bookingOrigin" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"></select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Destination</label>
+                        <select id="bookingDestination" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"></select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Departure Date</label>
+                        <input type="date" id="departureDate" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                    <div class="flex items-end">
+                        <button id="searchRoutesBtn" class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition">
+                            <i class="fas fa-search mr-2"></i>Search Routes
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Available Routes -->
+                <div id="routesSection" class="hidden mb-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Available Routes</h3>
+                    <div id="routesList" class="space-y-4"></div>
+                </div>
+
+                <!-- Booking Details -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Number of Pieces</label>
+                        <input type="number" id="bookingPieces" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" min="1" placeholder="1">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Weight (kg)</label>
+                        <input type="number" id="bookingWeight" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" min="1" placeholder="10">
+                    </div>
+                </div>
+
+                <!-- Selected Route Display -->
+                <div id="selectedRouteDisplay" class="hidden mb-6 p-4 bg-blue-50 rounded-lg">
+                    <h4 class="font-medium text-blue-900 mb-2">Selected Route:</h4>
+                    <div id="selectedRouteDetails" class="text-blue-800"></div>
+                </div>
+
+                <div class="flex space-x-4">
+                    <button id="createBookingBtn" class="bg-green-600 text-white py-2 px-6 rounded-lg hover:bg-green-700 transition disabled:opacity-50" disabled>
+                        <i class="fas fa-plus mr-2"></i>Create Booking
+                    </button>
+                    <button id="cancelBookingBtn" class="bg-gray-600 text-white py-2 px-6 rounded-lg hover:bg-gray-700 transition">
+                        <i class="fas fa-times mr-2"></i>Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Search Booking Section -->
+        <div id="searchBookingSection" class="hidden">
+            <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+                <h2 class="text-2xl font-bold text-gray-900 mb-6">Track Your Booking</h2>
+                
+                <div class="flex gap-4 mb-6">
+                    <div class="flex-1">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Booking Reference ID</label>
+                        <input type="text" id="searchRefId" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Enter your booking reference (e.g., AC12345678)">
+                    </div>
+                    <div class="flex items-end">
+                        <button id="trackBookingBtn" class="bg-blue-600 text-white py-2 px-6 rounded-lg hover:bg-blue-700 transition">
+                            <i class="fas fa-search mr-2"></i>Track
+                        </button>
+                    </div>
+                </div>
+                
+                <button id="cancelSearchBtn" class="text-gray-600 hover:text-gray-800 transition">
+                    <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
+                </button>
+            </div>
+        </div>
+
+        <!-- Booking Details Section -->
+        <div id="bookingDetailsSection" class="hidden">
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <div class="flex justify-between items-start mb-6">
+                    <h2 class="text-2xl font-bold text-gray-900">Booking Details</h2>
+                    <button id="backToDashboardBtn" class="text-gray-600 hover:text-gray-800 transition">
+                        <i class="fas fa-arrow-left mr-2"></i>Back
+                    </button>
+                </div>
+
+                <div id="bookingDetailsContent">
+                    <!-- Booking details will be populated here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Success/Error Messages -->
+        <div id="messageContainer" class="fixed top-4 right-4 z-40"></div>
+
+    </main>
+    
+    <!-- Modal for Status Updates -->
+    <div id="statusUpdateModal" class="modal-overlay fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center">
+        <div class="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
+            <h2 id="modalTitle" class="text-2xl font-bold text-gray-900 mb-6">Update Status</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Location</label>
+                    <input type="text" id="modalLocation" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="e.g., DEL" maxlength="3">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Flight ID (Optional)</label>
+                    <input type="text" id="modalFlightId" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="e.g., 6E2025">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Description (Optional)</label>
+                    <textarea id="modalDescription" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" rows="3"></textarea>
+                </div>
+            </div>
+            <div class="flex justify-end space-x-4 mt-6">
+                <button id="cancelModalBtn" class="bg-gray-600 text-white py-2 px-6 rounded-lg hover:bg-gray-700 transition">Cancel</button>
+                <button id="confirmUpdateBtn" class="bg-blue-600 text-white py-2 px-6 rounded-lg hover:bg-blue-700 transition">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // Global state
+        let selectedRoute = null;
+        let selectedFlights = [];
+        let currentBookingForUpdate = null; 
+
+        const airports = [
+            'DEL', 'BLR', 'BOM', 'MAA', 'HYD', 'CCU', 'AMD', 'COK', 'GOI', 'PNQ',
+            'JAI', 'LKO', 'IXC', 'GAU', 'IXB', 'VNS', 'IXA', 'TRV', 'CJB', 'IXR'
+        ];
+
+        const API_BASE = '/api';
+
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeApp();
+            loadDashboardData();
+            setupEventListeners();
+            populateAirportDropdowns();
+            
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('departureDate').setAttribute('min', today);
+            document.getElementById('departureDate').value = today;
+        });
+
+        function initializeApp() {
+            showSection('dashboard');
+        }
+
+        function populateAirportDropdowns() {
+            const originSelect = document.getElementById('bookingOrigin');
+            const destinationSelect = document.getElementById('bookingDestination');
+
+            airports.sort().forEach(airport => {
+                const option1 = document.createElement('option');
+                option1.value = airport;
+                option1.textContent = airport;
+                originSelect.appendChild(option1);
+
+                const option2 = document.createElement('option');
+                option2.value = airport;
+                option2.textContent = airport;
+                destinationSelect.appendChild(option2);
+            });
+
+            originSelect.value = 'DEL';
+            destinationSelect.value = 'BLR';
+        }
+
+        function setupEventListeners() {
+            document.getElementById('newBookingBtn').addEventListener('click', () => showCreateBooking());
+            document.getElementById('searchBookingBtn').addEventListener('click', () => showSearchBooking());
+            document.getElementById('cancelBookingBtn').addEventListener('click', () => showSection('dashboard'));
+            document.getElementById('cancelSearchBtn').addEventListener('click', () => showSection('dashboard'));
+            document.getElementById('backToDashboardBtn').addEventListener('click', () => showSection('dashboard'));
+            document.getElementById('searchRoutesBtn').addEventListener('click', searchRoutes);
+            document.getElementById('createBookingBtn').addEventListener('click', createBooking);
+            document.getElementById('trackBookingBtn').addEventListener('click', trackBooking);
+            
+            // Modal event listeners
+            document.getElementById('cancelModalBtn').addEventListener('click', hideStatusModal);
+            document.getElementById('confirmUpdateBtn').addEventListener('click', handleStatusUpdate);
+
+            //A single event listener on the container to handle clicks for dynamically created buttons
+            document.getElementById('bookingDetailsContent').addEventListener('click', handleActionButtons);
+
+
+            document.getElementById('searchRefId').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    trackBooking();
+                }
+            });
+
+            document.getElementById('searchRefId').addEventListener('input', function(e) {
+                e.target.value = e.target.value.toUpperCase();
+            });
+        }
+
+        function showSection(sectionName) {
+            const sections = ['dashboard', 'createBookingSection', 'searchBookingSection', 'bookingDetailsSection'];
+            sections.forEach(section => {
+                document.getElementById(section).classList.add('hidden');
+            });
+            document.getElementById(sectionName).classList.remove('hidden');
+        }
+
+        function showCreateBooking() {
+            showSection('createBookingSection');
+            resetBookingForm();
+        }
+
+        function showSearchBooking() {
+            showSection('searchBookingSection');
+            document.getElementById('searchRefId').value = '';
+        }
+
+        function resetBookingForm() {
+            document.getElementById('bookingOrigin').value = 'DEL';
+            document.getElementById('bookingDestination').value = 'BLR';
+            document.getElementById('bookingPieces').value = '';
+            document.getElementById('bookingWeight').value = '';
+            document.getElementById('routesSection').classList.add('hidden');
+            document.getElementById('selectedRouteDisplay').classList.add('hidden');
+            document.getElementById('createBookingBtn').disabled = true;
+            selectedRoute = null;
+            selectedFlights = [];
+        }
+
+        async function loadDashboardData() {
+            try {
+                const [bookingStats, flightStats] = await Promise.all([
+                    fetchAPI('/bookings/admin/stats'),
+                    fetchAPI('/flights/admin/stats')
+                ]);
+
+                updateDashboardStats(bookingStats, flightStats);
+            } catch (error) {
+                console.error('Error loading dashboard data:', error);
+                showMessage('Could not load dashboard data. Please check the server connection.', 'error');
+            }
+        }
+
+        function updateDashboardStats(bookingStats, flightStats) {
+            const totalBookings = Object.values(bookingStats.by_status || {})
+                .reduce((sum, status) => sum + status.count, 0);
+            
+            const deliveredCount = bookingStats.by_status?.DELIVERED?.count || 0;
+            const deliveryRate = totalBookings > 0 ? 
+                Math.round((deliveredCount / totalBookings) * 100) : 0;
+
+            document.getElementById('totalBookings').textContent = totalBookings;
+            document.getElementById('activeRoutes').textContent = flightStats.popular_routes?.length || 0;
+            document.getElementById('deliveryRate').textContent = deliveryRate + '%';
+        }
+
+        async function searchRoutes() {
+            const origin = document.getElementById('bookingOrigin').value;
+            const destination = document.getElementById('bookingDestination').value;
+            const departureDate = document.getElementById('departureDate').value;
+
+            if (!origin || !destination || !departureDate) {
+                showMessage('Please fill in origin, destination, and departure date', 'error');
+                return;
+            }
+
+            if (origin === destination) {
+                showMessage('Origin and destination cannot be the same', 'error');
+                return;
+            }
+
+            showLoading(true);
+
+            try {
+                const routes = await fetchAPI(`/flights/routes?origin=${origin}&destination=${destination}&departure_date=${departureDate}`);
+                displayRoutes(routes.routes);
+                document.getElementById('routesSection').classList.remove('hidden');
+            } catch (error) {
+                showMessage('Error searching routes: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function displayRoutes(routes) {
+            const routesList = document.getElementById('routesList');
+            routesList.innerHTML = '';
+
+            if (!routes || (routes.direct.length === 0 && routes.transit.length === 0)) {
+                routesList.innerHTML = '<p class="text-gray-600">No routes found for the selected route and date.</p>';
+                return;
+            }
+
+            if (routes.direct.length > 0) {
+                const directSection = document.createElement('div');
+                directSection.innerHTML = `<h4 class="font-semibold text-green-700 mb-3"><i class="fas fa-plane mr-2"></i>Direct Flights (${routes.direct.length})</h4>`;
+                routes.direct.forEach(route => directSection.appendChild(createRouteCard(route)));
+                routesList.appendChild(directSection);
+            }
+
+            if (routes.transit.length > 0) {
+                const transitSection = document.createElement('div');
+                transitSection.innerHTML = `<h4 class="font-semibold text-orange-700 mb-3 mt-6"><i class="fas fa-plane mr-2"></i>Transit Flights (${routes.transit.length})</h4>`;
+                routes.transit.forEach(route => transitSection.appendChild(createRouteCard(route)));
+                routesList.appendChild(transitSection);
+            }
+        }
+
+        function createRouteCard(route) {
+            const card = document.createElement('div');
+            card.className = 'border border-gray-200 rounded-lg p-4 hover:border-blue-300 cursor-pointer transition';
+            
+            if (route.route_type === 'direct') {
+                card.innerHTML = `<div class="flex justify-between items-center"><div class="flex items-center space-x-4"><div class="text-sm"><div class="font-medium">${route.flight_number}</div><div class="text-gray-600">${route.airline_name}</div></div><div class="text-sm"><div class="font-medium">${route.origin} → ${route.destination}</div><div class="text-gray-600">${new Date(route.departure_datetime).toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'})} - ${new Date(route.arrival_datetime).toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'})}</div></div></div><div class="text-right"><div class="text-sm font-medium">${Math.round(route.duration_minutes / 60 * 100) / 100}h</div><div class="text-xs text-green-600 font-medium">Direct</div></div></div>`;
+                card.addEventListener('click', (event) => selectRoute(event, route, [route.flight_id]));
+            } else {
+                card.innerHTML = `<div class="space-y-2"><div class="flex justify-between items-center"><div class="font-medium text-sm">${route.segments[0].origin} → ${route.transit_hub} → ${route.segments[1].destination}</div><div class="text-right"><div class="text-sm font-medium">${Math.round(route.total_duration_minutes / 60 * 100) / 100}h</div><div class="text-xs text-orange-600 font-medium">1 Stop</div></div></div><div class="grid grid-cols-2 gap-4 text-xs text-gray-600"><div><div>${route.segments[0].flight_number} - ${route.segments[0].airline_name}</div><div>${new Date(route.segments[0].departure_datetime).toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'})} - ${new Date(route.segments[0].arrival_datetime).toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'})}</div></div><div><div>${route.segments[1].flight_number} - ${route.segments[1].airline_name}</div><div>${new Date(route.segments[1].departure_datetime).toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'})} - ${new Date(route.segments[1].arrival_datetime).toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'})}</div></div></div><div class="text-xs text-gray-500">Layover: ${Math.round(route.layover_minutes / 60 * 100) / 100}h in ${route.transit_hub}</div></div>`;
+                const flightIds = route.segments.map(segment => segment.flight_id);
+                card.addEventListener('click', (event) => selectRoute(event, route, flightIds));
+            }
+            return card;
+        }
+
+        function selectRoute(event, route, flightIds) {
+            selectedRoute = route;
+            selectedFlights = flightIds;
+            document.querySelectorAll('#routesList .border-blue-500').forEach(el => {
+                el.classList.remove('border-blue-500', 'bg-blue-50');
+                el.classList.add('border-gray-200');
+            });
+            event.currentTarget.classList.add('border-blue-500', 'bg-blue-50');
+            event.currentTarget.classList.remove('border-gray-200');
+            displaySelectedRoute(route);
+            document.getElementById('createBookingBtn').disabled = false;
+        }
+
+        function displaySelectedRoute(route) {
+            const display = document.getElementById('selectedRouteDisplay');
+            const details = document.getElementById('selectedRouteDetails');
+            if (route.route_type === 'direct') {
+                details.innerHTML = `<div class="flex items-center justify-between"><span><strong>${route.flight_number}</strong> - ${route.airline_name}</span><span><strong>${route.origin} → ${route.destination}</strong></span><span>Duration: <strong>${Math.round(route.duration_minutes / 60 * 100) / 100}h</strong></span></div>`;
+            } else {
+                details.innerHTML = `<div><div class="mb-2"><strong>${route.segments[0].origin} → ${route.transit_hub} → ${route.segments[1].destination}</strong></div><div class="text-sm space-y-1"><div>• ${route.segments[0].flight_number} (${route.segments[0].airline_name})</div><div>• ${route.segments[1].flight_number} (${route.segments[1].airline_name})</div><div>• Total Duration: <strong>${Math.round(route.total_duration_minutes / 60 * 100) / 100}h</strong></div></div></div>`;
+            }
+            display.classList.remove('hidden');
+        }
+
+        async function createBooking() {
+            const pieces = parseInt(document.getElementById('bookingPieces').value);
+            const weight = parseInt(document.getElementById('bookingWeight').value);
+            const origin = document.getElementById('bookingOrigin').value;
+            const destination = document.getElementById('bookingDestination').value;
+
+            if (!pieces || !weight || !origin || !destination) {
+                showMessage('Please fill in all booking details', 'error');
+                return;
+            }
+            if (!selectedRoute) {
+                showMessage('Please select a route before creating a booking.', 'error');
+                return;
+            }
+
+            showLoading(true);
+            try {
+                const bookingData = { origin, destination, pieces, weight_kg: weight, flight_ids: selectedFlights };
+                const result = await fetchAPI('/bookings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(bookingData)
+                });
+                showMessage(`Booking created successfully! Reference ID: ${result.ref_id}`, 'success');
+                setTimeout(() => trackBookingById(result.ref_id), 1500);
+            } catch (error) {
+                showMessage('Error creating booking: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function trackBooking() {
+            const refId = document.getElementById('searchRefId').value.trim();
+            if (!refId) {
+                showMessage('Please enter a booking reference ID', 'error');
+                return;
+            }
+            trackBookingById(refId);
+        }
+
+        async function trackBookingById(refId) {
+            showLoading(true);
+            try {
+                const booking = await fetchAPI(`/bookings/${refId}`);
+                displayBookingDetails(booking);
+                showSection('bookingDetailsSection');
+            } catch (error) {
+                showMessage('Error tracking booking: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function displayBookingDetails(booking) {
+            const container = document.getElementById('bookingDetailsContent');
+            const timelineEvents = JSON.parse(booking.timeline || '[]');
+            
+            let actionButtons = '';
+            if (booking.status === 'BOOKED') {
+                actionButtons = `<button data-action="depart" data-ref-id="${booking.ref_id}" class="bg-yellow-500 text-white px-3 py-1 rounded-lg text-sm font-medium hover:bg-yellow-600 transition">Depart</button>`;
+            }
+            if (booking.status === 'DEPARTED') {
+                actionButtons = `<button data-action="arrive" data-ref-id="${booking.ref_id}" class="bg-green-500 text-white px-3 py-1 rounded-lg text-sm font-medium hover:bg-green-600 transition">Arrive</button>`;
+            }
+            if (booking.status === 'ARRIVED') {
+                actionButtons = `<button data-action="deliver" data-ref-id="${booking.ref_id}" class="bg-emerald-500 text-white px-3 py-1 rounded-lg text-sm font-medium hover:bg-emerald-600 transition">Deliver</button>`;
+            }
+            if (booking.status !== 'DELIVERED' && booking.status !== 'CANCELLED') {
+                 actionButtons += `<button data-action="cancel" data-ref-id="${booking.ref_id}" class="bg-red-500 text-white px-3 py-1 rounded-lg text-sm font-medium hover:bg-red-600 transition ml-2">Cancel</button>`;
+            }
+
+            container.innerHTML = `
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div>
+                        <div class="bg-gray-50 rounded-lg p-6 mb-6">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-lg font-semibold text-gray-900">Booking Information</h3>
+                                <div class="space-x-2">${actionButtons}</div>
+                            </div>
+                            <div class="space-y-3">
+                                <div class="flex justify-between"><span class="text-gray-600">Reference ID:</span><span class="font-medium">${booking.ref_id}</span></div>
+                                <div class="flex justify-between"><span class="text-gray-600">Route:</span><span class="font-medium">${booking.origin} → ${booking.destination}</span></div>
+                                <div class="flex justify-between"><span class="text-gray-600">Pieces:</span><span class="font-medium">${booking.pieces}</span></div>
+                                <div class="flex justify-between"><span class="text-gray-600">Weight:</span><span class="font-medium">${booking.weight_kg} kg</span></div>
+                                <div class="flex justify-between"><span class="text-gray-600">Status:</span><span class="status-${booking.status.toLowerCase()} text-white px-3 py-1 rounded-full text-sm font-medium">${booking.status}</span></div>
+                                <div class="flex justify-between"><span class="text-gray-600">Created:</span><span class="font-medium">${new Date(booking.created_at).toLocaleString()}</span></div>
+                            </div>
+                        </div>
+                        ${booking.flights && booking.flights.length > 0 ? `<div class="bg-blue-50 rounded-lg p-6"><h3 class="text-lg font-semibold text-blue-900 mb-4">Flight Information</h3><div class="space-y-2">${booking.flights.map(flight => `<div class="text-blue-800"><i class="fas fa-plane mr-2"></i>Flight ${flight.flight_id}</div>`).join('')}</div></div>` : ''}
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Tracking Timeline</h3>
+                        <div class="timeline">${timelineEvents.map(event => `<div class="timeline-item"><div class="timeline-marker ${event.event_type === booking.status ? 'completed' : ''}"></div><div class="bg-white rounded-lg shadow p-4"><div class="flex justify-between items-start mb-2"><h4 class="font-medium text-gray-900">${event.event_type}</h4><span class="text-xs text-gray-500">${new Date(event.created_at).toLocaleString()}</span></div>${event.location ? `<p class="text-sm text-gray-600 mb-1">Location: ${event.location}</p>` : ''}${event.flight_id ? `<p class="text-sm text-gray-600 mb-1">Flight: ${event.flight_id}</p>` : ''}${event.description ? `<p class="text-sm text-gray-700">${event.description}</p>` : ''}</div></div>`).join('')}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // FIX: New handler for all action buttons
+        function handleActionButtons(event) {
+            const button = event.target.closest('button');
+            if (!button) return;
+
+            const action = button.dataset.action;
+            const refId = button.dataset.refId;
+
+            if (!action || !refId) return;
+
+            switch (action) {
+                case 'depart':
+                    showStatusModal(refId, 'DEPARTED');
+                    break;
+                case 'arrive':
+                    showStatusModal(refId, 'ARRIVED');
+                    break;
+                case 'deliver':
+                    updateStatus(refId, 'DELIVERED');
+                    break;
+                case 'cancel':
+                    updateStatus(refId, 'CANCELLED');
+                    break;
+            }
+        }
+
+        function showStatusModal(refId, status) {
+            currentBookingForUpdate = { refId, status };
+            document.getElementById('modalTitle').textContent = `Mark as ${status}`;
+            document.getElementById('modalLocation').value = '';
+            document.getElementById('modalFlightId').value = '';
+            document.getElementById('modalDescription').value = '';
+            document.getElementById('statusUpdateModal').classList.add('active');
+        }
+
+        function hideStatusModal() {
+            document.getElementById('statusUpdateModal').classList.remove('active');
+            currentBookingForUpdate = null;
+        }
+
+        async function handleStatusUpdate() {
+            if (!currentBookingForUpdate) return;
+            const { refId, status } = currentBookingForUpdate;
+            const location = document.getElementById('modalLocation').value.trim().toUpperCase();
+            const flight_id = document.getElementById('modalFlightId').value.trim();
+            const description = document.getElementById('modalDescription').value.trim();
+            
+            if (!location && (status === 'DEPARTED' || status === 'ARRIVED')) {
+                showMessage('Location is required for this update.', 'error');
+                return;
+            }
+
+            hideStatusModal();
+            await updateStatus(refId, status, { location, flight_id, description });
+        }
+
+        async function updateStatus(refId, status, details = {}) {
+            showLoading(true);
+            try {
+                const payload = { status, ...details };
+                await fetchAPI(`/bookings/${refId}/status`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                showMessage(`Booking ${refId} status updated to ${status}.`, 'success');
+                trackBookingById(refId); 
+            } catch (error) {
+                showMessage('Error updating status: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function fetchAPI(endpoint, options = {}) {
+            const response = await fetch(API_BASE + endpoint, options);
+            const data = await response.json();
+            if (!data.success) {
+                let errorMessage = data.error || 'API request failed';
+                if (data.details && Array.isArray(data.details)) {
+                    errorMessage += ': ' + data.details.map(d => d.message || JSON.stringify(d)).join(', ');
+                } else if (data.details) {
+                    errorMessage += ': ' + JSON.stringify(data.details);
+                }
+                throw new Error(errorMessage);
+            }
+            return data.data;
+        }
+
+        function showLoading(show) {
+            document.getElementById('loadingOverlay').classList.toggle('active', show);
+        }
+
+        function showMessage(message, type = 'info') {
+            const container = document.getElementById('messageContainer');
+            const messageDiv = document.createElement('div');
+            const bgColor = type === 'error' ? 'bg-red-500' : type === 'success' ? 'bg-green-500' : 'bg-blue-500';
+            messageDiv.className = `${bgColor} text-white px-6 py-4 rounded-lg shadow-lg mb-4 fade-in`;
+            messageDiv.innerHTML = `<div class="flex justify-between items-center"><span>${message}</span><button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white hover:text-gray-200"><i class="fas fa-times"></i></button></div>`;
+            container.appendChild(messageDiv);
+            setTimeout(() => {
+                if (messageDiv.parentElement) messageDiv.remove();
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
+
