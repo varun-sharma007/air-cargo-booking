@@ -5,7 +5,7 @@ const { v4: uuidv4 } = require('uuid');
 
 class BookingService {
   
-  // Generate human-friendly ref_id
+  // Generate ref_id
   generateRefId() {
     const prefix = 'AC'; // Air Cargo
     const timestamp = Date.now().toString(36).toUpperCase();
@@ -344,3 +344,4 @@ class BookingService {
 }
 
 module.exports = new BookingService();
+
