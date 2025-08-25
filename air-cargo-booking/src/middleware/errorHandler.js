@@ -1,4 +1,3 @@
-// src/middleware/errorHandler.js
 const logger = require('../utils/logger');
 
 const errorHandler = (err, req, res, next) => {
@@ -61,5 +60,6 @@ const errorHandler = (err, req, res, next) => {
     request_id: req.id || 'unknown'
   });
 };
+
 
 module.exports = errorHandler;
