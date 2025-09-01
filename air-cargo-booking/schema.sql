@@ -62,16 +62,6 @@ CREATE TABLE timeline_events (
     INDEX idx_booking_timeline (booking_id, created_at),
     INDEX idx_event_type (event_type)
 );
-
--- Distributed locks table
-CREATE TABLE distributed_locks (
-    lock_key VARCHAR(255) PRIMARY KEY,
-    locked_until TIMESTAMP NOT NULL,
-    locked_by VARCHAR(100) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_locked_until (locked_until)
-);
-
 -- Performance monitoring table
 CREATE TABLE api_metrics (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -82,4 +72,5 @@ CREATE TABLE api_metrics (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_endpoint_time (endpoint, created_at),
     INDEX idx_performance (response_time_ms, created_at)
+
 );
