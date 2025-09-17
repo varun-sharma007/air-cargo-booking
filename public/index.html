@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Air Cargo Booking & Tracking</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .loading, .modal-overlay { display: none; }
+        .loading.active, .modal-overlay.active { display: flex; }
+        .fade-in { animation: fadeIn 0.5s ease-in; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .status-booked { background-color: #3B82F6; }
+        .status-departed { background-color: #F59E0B; }
+        .status-arrived { background-color: #10B981; }
+        .status-delivered { background-color: #059669; }
+        .status-cancelled { background-color: #EF4444; }
+        .timeline { position: relative; }
+        .timeline::before { content: ''; position: absolute; left: 15px; top: 0; bottom: 0; width: 2px; background: #e5e7eb; }
+        .timeline-item { position: relative; padding-left: 40px; margin-bottom: 20px; }
+        .timeline-marker { position: absolute; left: 8px; top: 5px; width: 16px; height: 16px; background: white; border: 3px solid #3B82F6; border-radius: 50%; }
+        .timeline-marker.completed { background: #3B82F6; }
+    </style>
+</head>
+
+<body class="bg-gray-100 min-h-screen font-sans">
+    <!-- Header -->
+    <header class="bg-blue-600 text-white shadow-lg">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <a href="#" id="homeLink" class="text-2xl font-bold flex items-center cursor-pointer">
+                        <i class="fas fa-plane mr-3"></i>
+                        <span>Air Cargo</span>
+                    </a>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div id="auth-buttons" class="flex space-x-2">
+                        <button id="loginBtn" class="bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-800 transition">Login</button>
+                        <button id="registerBtn" class="bg-white text-blue-600 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-100 transition">Register</button>
+                    </div>
+                    <div id="user-info" class="hidden items-center space-x-4">
+                        <span id="userEmail" class="text-sm font-medium"></span>
+                        <button id="myBookingsBtn" class="bg-green-500 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-600 transition"><i class="fas fa-history mr-2"></i>My Bookings</button>
+                        <button id="logoutBtn" class="bg-red-500 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-red-600 transition">Logout</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center">
+        <div class="bg-white rounded-lg p-6 flex items-center shadow-xl">
+            <i class="fas fa-spinner fa-spin text-blue-600 text-3xl mr-4"></i>
+            <span class="text-lg font-medium text-gray-700">Processing...</span>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Dashboard Section -->
+        <div id="dashboardSection">
+            <div id="statsSection" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="bg-white rounded-lg shadow p-6 flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-600 text-sm font-medium">Total Bookings (30d)</p>
+                        <p id="totalBookings" class="text-3xl font-bold text-gray-900">-</p>
+                    </div>
+                    <div class="bg-blue-100 p-3 rounded-full"><i class="fas fa-box text-blue-600 text-xl"></i></div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6 flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-600 text-sm font-medium">Active Routes</p>
+                        <p id="activeRoutes" class="text-3xl font-bold text-gray-900">-</p>
+                    </div>
+                    <div class="bg-green-100 p-3 rounded-full"><i class="fas fa-route text-green-600 text-xl"></i></div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6 flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-600 text-sm font-medium">Top Airline</p>
+                        <p id="topAirline" class="text-3xl font-bold text-gray-900">-</p>
+                    </div>
+                    <div class="bg-purple-100 p-3 rounded-full"><i class="fas fa-star text-purple-600 text-xl"></i></div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h2 class="text-xl font-bold text-gray-900 mb-4">Track a Shipment</h2>
+                    <div class="flex gap-4">
+                        <input type="text" id="searchRefId" class="flex-1 w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Enter booking reference (e.g., AC12345678)">
+                        <button id="trackBookingBtn" class="bg-blue-600 text-white py-2 px-6 rounded-lg hover:bg-blue-700 transition">
+                            <i class="fas fa-search mr-2"></i>Track
+                        </button>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6 text-center flex flex-col items-center justify-center">
+                    <h2 class="text-xl font-bold text-gray-900 mb-2">New Shipment?</h2>
+                    <p class="text-gray-600 mb-4">Create a new booking to get your cargo moving.</p>
+                    <button id="newBookingBtn" class="bg-green-600 text-white py-2 px-8 rounded-lg hover:bg-green-700 transition">
+                        <i class="fas fa-plus mr-2"></i>Create New Booking
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create Booking Section -->
+        <div id="createBookingSection" class="hidden">
+            <div class="bg-white rounded-lg shadow-lg p-8">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-900">Create New Booking</h2>
+                    <button class="backBtn text-gray-600 hover:text-gray-800 transition"><i class="fas fa-arrow-left mr-2"></i>Back</button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Origin</label>
+                        <select id="bookingOrigin" class="w-full px-3 py-2 border border-gray-300 rounded-lg"></select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Destination</label>
+                        <select id="bookingDestination" class="w-full px-3 py-2 border border-gray-300 rounded-lg"></select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Departure Date</label>
+                        <input type="date" id="departureDate" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    </div>
+                    <div class="flex items-end">
+                        <button id="searchRoutesBtn" class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition">
+                            <i class="fas fa-search mr-2"></i>Search Routes
+                        </button>
+                    </div>
+                </div>
+                <div id="routesSection" class="hidden mb-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Available Routes</h3>
+                    <div id="routesList" class="space-y-4"></div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Number of Pieces</label>
+                        <input type="number" id="bookingPieces" class="w-full px-3 py-2 border border-gray-300 rounded-lg" min="1" placeholder="e.g., 5">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Total Weight (kg)</label>
+                        <input type="number" id="bookingWeight" class="w-full px-3 py-2 border border-gray-300 rounded-lg" min="1" placeholder="e.g., 25">
+                    </div>
+                </div>
+                <div id="selectedRouteDisplay" class="hidden mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <h4 class="font-medium text-blue-900 mb-2">Selected Route:</h4>
+                    <div id="selectedRouteDetails" class="text-blue-800"></div>
+                </div>
+                <button id="createBookingBtn" class="w-full bg-green-600 text-white py-3 px-6 rounded-lg hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    <i class="fas fa-check mr-2"></i>Confirm & Create Booking
+                </button>
+            </div>
+        </div>
+
+        <!-- My Bookings Section -->
+        <div id="myBookingsSection" class="hidden">
+            <div class="bg-white rounded-lg shadow-lg p-8">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-900">My Bookings</h2>
+                    <button class="backBtn text-gray-600 hover:text-gray-800 transition"><i class="fas fa-arrow-left mr-2"></i>Back</button>
+                </div>
+                <div id="myBookingsList" class="space-y-4"></div>
+            </div>
+        </div>
+
+        <!-- Booking Details Section -->
+        <div id="bookingDetailsSection" class="hidden">
+            <div class="bg-white rounded-lg shadow-lg p-8">
+                <div class="flex justify-between items-start mb-6">
+                    <h2 class="text-2xl font-bold text-gray-900">Booking Details</h2>
+                    <button class="backBtn text-gray-600 hover:text-gray-800 transition"><i class="fas fa-arrow-left mr-2"></i>Back</button>
+                </div>
+                <div id="bookingDetailsContent"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modals -->
+    <div id="authModal" class="modal-overlay fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center">
+        <div class="bg-white rounded-lg shadow-lg p-8 w-full max-w-md">
+            <h2 id="authModalTitle" class="text-2xl font-bold text-gray-900 mb-6">Login</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                    <input type="email" id="authEmail" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                    <input type="password" id="authPassword" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                </div>
+            </div>
+            <div class="flex justify-end space-x-4 mt-6">
+                <button id="cancelAuthModalBtn" class="bg-gray-200 text-gray-800 py-2 px-6 rounded-lg hover:bg-gray-300 transition">Cancel</button>
+                <button id="confirmAuthBtn" class="bg-blue-600 text-white py-2 px-6 rounded-lg hover:bg-blue-700 transition">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="statusUpdateModal" class="modal-overlay fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center">
+        <div class="bg-white rounded-lg shadow-lg p-8 w-full max-w-md">
+            <h2 id="modalTitle" class="text-2xl font-bold text-gray-900 mb-6">Update Status</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Location</label>
+                    <input type="text" id="modalLocation" class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="e.g., Airport Code" maxlength="3">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Description (Optional)</label>
+                    <textarea id="modalDescription" class="w-full px-3 py-2 border border-gray-300 rounded-lg" rows="3"></textarea>
+                </div>
+            </div>
+            <div class="flex justify-end space-x-4 mt-6">
+                <button id="cancelModalBtn" class="bg-gray-200 text-gray-800 py-2 px-6 rounded-lg hover:bg-gray-300 transition">Cancel</button>
+                <button id="confirmUpdateBtn" class="bg-blue-600 text-white py-2 px-6 rounded-lg hover:bg-blue-700 transition">Confirm</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="messageContainer" class="fixed top-20 right-4 z-50"></div>
+
+    <script>
+        // --- Global State ---
+        let authToken = localStorage.getItem('token');
+        let userEmail = localStorage.getItem('userEmail');
+        let selectedRoute = null;
+        let selectedFlights = [];
+        let isLoginMode = true;
+        let currentBookingForUpdate = null;
+        const airports = ['DEL', 'BLR', 'BOM', 'MAA', 'HYD', 'CCU', 'AMD', 'COK', 'GOI', 'PNQ', 'JAI', 'LKO', 'IXC', 'GAU', 'IXB', 'VNS', 'IXA', 'TRV', 'CJB', 'IXR'];
+        const API_BASE = '/api';
+
+        // --- Initializer ---
+        document.addEventListener('DOMContentLoaded', () => {
+            setupEventListeners();
+            checkAuth();
+            populateAirportDropdowns();
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('departureDate').setAttribute('min', today);
+            document.getElementById('departureDate').value = today;
+            showSection('dashboardSection');
+        });
+
+        // --- Event Listeners ---
+        function setupEventListeners() {
+            document.getElementById('homeLink').addEventListener('click', () => showSection('dashboardSection'));
+            document.getElementById('newBookingBtn').addEventListener('click', showCreateBooking);
+            document.getElementById('trackBookingBtn').addEventListener('click', trackBooking);
+            document.getElementById('loginBtn').addEventListener('click', () => showAuthModal(true));
+            document.getElementById('registerBtn').addEventListener('click', () => showAuthModal(false));
+            document.getElementById('logoutBtn').addEventListener('click', logout);
+            document.getElementById('myBookingsBtn').addEventListener('click', showMyBookings);
+            document.getElementById('cancelAuthModalBtn').addEventListener('click', hideAuthModal);
+            document.getElementById('confirmAuthBtn').addEventListener('click', handleAuth);
+            document.getElementById('searchRoutesBtn').addEventListener('click', searchRoutes);
+            document.getElementById('createBookingBtn').addEventListener('click', createBooking);
+            document.querySelectorAll('.backBtn').forEach(btn => btn.addEventListener('click', () => showSection('dashboardSection')));
+            document.getElementById('searchRefId').addEventListener('input', e => e.target.value = e.target.value.toUpperCase());
+            
+            // Status update modal
+            document.getElementById('cancelModalBtn').addEventListener('click', hideStatusModal);
+            document.getElementById('confirmUpdateBtn').addEventListener('click', handleStatusUpdate);
+            document.getElementById('bookingDetailsContent').addEventListener('click', handleActionButtons);
+        }
+        
+        // --- UI & Navigation ---
+        function showSection(sectionId) {
+            ['dashboardSection', 'createBookingSection', 'myBookingsSection', 'bookingDetailsSection'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
+            document.getElementById(sectionId).classList.remove('hidden');
+            if (sectionId === 'dashboardSection') loadDashboardData();
+        }
+
+        function showCreateBooking() {
+            if (!authToken) {
+                showMessage('Please log in to create a new booking.', 'error');
+                showAuthModal(true);
+                return;
+            }
+            showSection('createBookingSection');
+            resetBookingForm();
+        }
+
+        function resetBookingForm() {
+            document.getElementById('bookingOrigin').value = 'DEL';
+            document.getElementById('bookingDestination').value = 'BLR';
+            document.getElementById('bookingPieces').value = '';
+            document.getElementById('bookingWeight').value = '';
+            document.getElementById('routesSection').classList.add('hidden');
+            document.getElementById('selectedRouteDisplay').classList.add('hidden');
+            document.getElementById('createBookingBtn').disabled = true;
+            selectedRoute = null;
+            selectedFlights = [];
+        }
+
+        function populateAirportDropdowns() {
+            const originSelect = document.getElementById('bookingOrigin');
+            const destinationSelect = document.getElementById('bookingDestination');
+            airports.sort().forEach(airport => {
+                originSelect.add(new Option(airport, airport));
+                destinationSelect.add(new Option(airport, airport));
+            });
+            originSelect.value = 'DEL';
+            destinationSelect.value = 'BLR';
+        }
+
+        // --- Authentication ---
+        function checkAuth() {
+            if (authToken && userEmail) {
+                document.getElementById('auth-buttons').classList.add('hidden');
+                document.getElementById('user-info').classList.remove('hidden');
+                document.getElementById('userEmail').textContent = `Welcome, ${userEmail}`;
+            } else if (authToken) {
+                document.getElementById('auth-buttons').classList.add('hidden');
+                document.getElementById('user-info').classList.remove('hidden');
+                document.getElementById('userEmail').textContent = `Welcome!`;
+            } else {
+                document.getElementById('auth-buttons').classList.remove('hidden');
+                document.getElementById('user-info').classList.add('hidden');
+            }
+        }
+        
+        function showAuthModal(loginMode) {
+            isLoginMode = loginMode;
+            document.getElementById('authModalTitle').textContent = isLoginMode ? 'Login' : 'Register';
+            document.getElementById('authModal').classList.add('active');
+        }
+
+        function hideAuthModal() {
+            document.getElementById('authModal').classList.remove('active');
+        }
+
+        async function handleAuth() {
+            const email = document.getElementById('authEmail').value;
+            const password = document.getElementById('authPassword').value;
+            if (!email || !password) {
+                showMessage('Email and password are required.', 'error');
+                return;
+            }
+            const endpoint = isLoginMode ? '/auth/login' : '/auth/register';
+            showLoading(true);
+            try {
+                const result = await fetchAPI(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                if (isLoginMode) {
+                    localStorage.setItem('token', result.token);
+                    localStorage.setItem('userEmail', result.email);
+                    authToken = result.token;
+                    userEmail = result.email;
+                    checkAuth();
+                    showMessage('Login successful!', 'success');
+                    hideAuthModal();
+                } else {
+                    showMessage('Registration successful! Please log in.', 'success');
+                    showAuthModal(true);
+                }
+            } catch (error) {
+                showMessage(error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('userEmail');
+            authToken = null;
+            userEmail = null;
+            checkAuth();
+            showSection('dashboardSection');
+            showMessage('You have been logged out.', 'success');
+        }
+
+        // --- Core Application Logic ---
+        async function loadDashboardData() {
+            try {
+                const [bookingStats, flightStats] = await Promise.all([
+                    fetchAPI('/bookings/admin/stats'),
+                    fetchAPI('/flights/admin/stats')
+                ]);
+                document.getElementById('totalBookings').textContent = bookingStats.total || 0;
+                document.getElementById('activeRoutes').textContent = flightStats.popular_routes?.length || 0;
+                document.getElementById('topAirline').textContent = flightStats.top_airlines?.[0]?.airline_name || 'N/A';
+            } catch (error) {
+                console.error('Error loading dashboard data:', error);
+            }
+        }
+
+        async function searchRoutes() {
+            const origin = document.getElementById('bookingOrigin').value;
+            const destination = document.getElementById('bookingDestination').value;
+            const departureDate = document.getElementById('departureDate').value;
+            if (origin === destination) {
+                showMessage('Origin and destination cannot be the same.', 'error');
+                return;
+            }
+            showLoading(true);
+            try {
+                const data = await fetchAPI(`/flights/routes?origin=${origin}&destination=${destination}&departure_date=${departureDate}`);
+                displayRoutes(data.routes);
+                document.getElementById('routesSection').classList.remove('hidden');
+            } catch (error) {
+                showMessage(error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function displayRoutes(routes) {
+            const list = document.getElementById('routesList');
+            list.innerHTML = '';
+            if (!routes || (!routes.direct?.length && !routes.transit?.length)) {
+                list.innerHTML = '<p class="text-gray-600">No routes found.</p>';
+                return;
+            }
+            if (routes.direct?.length) {
+                const section = document.createElement('div');
+                section.innerHTML = `<h4 class="font-semibold text-green-700 mb-3"><i class="fas fa-plane mr-2"></i>Direct Flights (${routes.direct.length})</h4>`;
+                routes.direct.forEach(route => section.appendChild(createRouteCard(route)));
+                list.appendChild(section);
+            }
+            if (routes.transit?.length) {
+                const section = document.createElement('div');
+                section.innerHTML = `<h4 class="font-semibold text-orange-700 mb-3 mt-6"><i class="fas fa-project-diagram mr-2"></i>Transit Flights (${routes.transit.length})</h4>`;
+                routes.transit.forEach(route => section.appendChild(createRouteCard(route)));
+                list.appendChild(section);
+            }
+        }
+
+        function createRouteCard(route) {
+            const card = document.createElement('div');
+            card.className = 'border border-gray-200 rounded-lg p-4 hover:border-blue-500 hover:bg-blue-50 cursor-pointer transition';
+            const flightIds = route.route_type === 'direct' ? [route.flight_id] : route.segments.map(s => s.flight_id);
+            const duration = (minutes) => `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+
+            if (route.route_type === 'direct') {
+                card.innerHTML = `<div class="flex justify-between items-center"><div class="flex items-center space-x-4"><div class="text-sm"><div class="font-bold text-gray-800">${route.flight_number}</div><div class="text-gray-600">${route.airline_name}</div></div><div class="text-sm font-medium">${route.origin} → ${route.destination}</div></div><div class="text-right"><div class="text-lg font-bold text-gray-900">${duration(route.duration_minutes)}</div><div class="text-xs text-green-600 font-medium">Direct</div></div></div>`;
+            } else {
+                card.innerHTML = `<div class="space-y-2"><div class="flex justify-between items-center"><div class="font-medium text-sm">${route.segments[0].origin} → ${route.transit_hub} → ${route.segments[1].destination}</div><div class="text-right"><div class="text-lg font-bold text-gray-900">${duration(route.total_duration_minutes)}</div><div class="text-xs text-orange-600 font-medium">1 Stop</div></div></div><div class="text-xs text-gray-500">Layover: ${duration(route.layover_minutes)} in ${route.transit_hub}</div></div>`;
+            }
+            card.addEventListener('click', (e) => selectRoute(e.currentTarget, route, flightIds));
+            return card;
+        }
+
+        function selectRoute(cardElement, route, flightIds) {
+            selectedRoute = route;
+            selectedFlights = flightIds;
+            document.querySelectorAll('#routesList .border-blue-500').forEach(el => el.classList.replace('border-blue-500', 'border-gray-200'));
+            cardElement.classList.replace('border-gray-200', 'border-blue-500');
+            
+            const details = document.getElementById('selectedRouteDetails');
+            if (route.route_type === 'direct') {
+                details.innerHTML = `<strong>Direct Flight:</strong> ${route.flight_number} (${route.origin} → ${route.destination})`;
+            } else {
+                details.innerHTML = `<strong>Transit via ${route.transit_hub}:</strong> ${route.segments.map(s => s.flight_number).join(' & ')}`;
+            }
+            document.getElementById('selectedRouteDisplay').classList.remove('hidden');
+            document.getElementById('createBookingBtn').disabled = false;
+        }
+
+        async function createBooking() {
+            if (!selectedRoute) {
+                showMessage('Please select a route before creating a booking.', 'error');
+                return;
+            }
+            const bookingData = {
+                origin: document.getElementById('bookingOrigin').value,
+                destination: document.getElementById('bookingDestination').value,
+                pieces: parseInt(document.getElementById('bookingPieces').value),
+                weight_kg: parseInt(document.getElementById('bookingWeight').value),
+                flight_ids: selectedFlights
+            };
+
+            showLoading(true);
+            try {
+                const newBooking = await fetchAPI('/bookings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(bookingData)
+                });
+                showMessage(`Booking created successfully! Ref: ${newBooking.ref_id}`, 'success');
+                displayBookingDetails(newBooking);
+                showSection('bookingDetailsSection');
+
+            } catch (error) {
+                showMessage(`Error creating booking: ${error.message}`, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        async function showMyBookings() {
+            showSection('myBookingsSection');
+            const list = document.getElementById('myBookingsList');
+            list.innerHTML = 'Loading your bookings...';
+            try {
+                const bookings = await fetchAPI('/bookings');
+                if (bookings.length === 0) {
+                    list.innerHTML = '<p>You have no bookings yet.</p>';
+                    return;
+                }
+                list.innerHTML = bookings.map(b => `<div class="border rounded-lg p-4 flex justify-between items-center hover:bg-gray-50 cursor-pointer" onclick="trackBookingById('${b.ref_id}')"><div><div class="font-bold text-gray-800">${b.ref_id}</div><div class="text-sm text-gray-600">${b.origin} → ${b.destination}</div></div><span class="status-${b.status.toLowerCase()} text-white px-3 py-1 rounded-full text-xs font-medium">${b.status}</span></div>`).join('');
+            } catch (error) {
+                showMessage(error.message, 'error');
+                list.innerHTML = '<p>Could not load your bookings.</p>';
+            }
+        }
+
+        async function trackBooking() {
+            const refId = document.getElementById('searchRefId').value.trim();
+            if (!refId) {
+                showMessage('Please enter a booking reference ID', 'error');
+                return;
+            }
+            trackBookingById(refId);
+        }
+
+        async function trackBookingById(refId) {
+            showLoading(true);
+            try {
+                const booking = await fetchAPI(`/bookings/${refId}`);
+                displayBookingDetails(booking);
+                showSection('bookingDetailsSection');
+            } catch (error) {
+                showMessage(error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function displayBookingDetails(booking) {
+            const container = document.getElementById('bookingDetailsContent');
+            const timelineEvents = booking.timeline || [];
+            
+            let actionButtons = '';
+            if (booking.status === 'BOOKED') {
+                actionButtons = `<button data-action="depart" data-ref-id="${booking.ref_id}" class="bg-yellow-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-yellow-600 transition">Depart</button>`;
+            } else if (booking.status === 'DEPARTED') {
+                actionButtons = `<button data-action="arrive" data-ref-id="${booking.ref_id}" class="bg-green-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-600 transition">Arrive</button>`;
+            } else if (booking.status === 'ARRIVED') {
+                actionButtons = `<button data-action="deliver" data-ref-id="${booking.ref_id}" class="bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-600 transition">Deliver</button>`;
+            }
+
+            if (booking.status !== 'DELIVERED' && booking.status !== 'CANCELLED') {
+                 actionButtons += `<button data-action="cancel" data-ref-id="${booking.ref_id}" class="bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-600 transition ml-2">Cancel</button>`;
+            }
+
+            container.innerHTML = `
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div>
+                        <div class="bg-gray-50 rounded-lg p-6 mb-6">
+                             <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-lg font-semibold text-gray-900">Booking Information</h3>
+                                <div class="space-x-2">${actionButtons}</div>
+                            </div>
+                            <div class="space-y-3">
+                                <div class="flex justify-between"><span class="text-gray-600">Reference:</span><span class="font-medium text-gray-800">${booking.ref_id}</span></div>
+                                <div class="flex justify-between"><span class="text-gray-600">Route:</span><span class="font-medium text-gray-800">${booking.origin} → ${booking.destination}</span></div>
+                                <div class="flex justify-between"><span class="text-gray-600">Items:</span><span class="font-medium text-gray-800">${booking.pieces} pieces, ${booking.weight_kg} kg</span></div>
+                                <div class="flex justify-between items-center"><span class="text-gray-600">Status:</span><span class="status-${booking.status.toLowerCase()} text-white px-3 py-1 rounded-full text-sm font-medium">${booking.status}</span></div>
+                            </div>
+                        </div>
+                        ${booking.flights && booking.flights.length > 0 ? `<div class="bg-blue-50 rounded-lg p-6"><h3 class="text-lg font-semibold text-blue-900 mb-4">Flight Details</h3><div class="space-y-2">${booking.flights.map(f => `<div class="text-sm text-blue-800"><i class="fas fa-plane fa-fw mr-2"></i>${f.flight_number} (${f.airline_name})</div>`).join('')}</div></div>` : ''}
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Tracking History</h3>
+                        <div class="timeline">${timelineEvents.map((event, index) => `<div class="timeline-item"><div class="timeline-marker ${index === timelineEvents.length - 1 ? 'completed' : ''}"></div><div class="p-4"><div class="flex justify-between items-start mb-1"><h4 class="font-medium text-gray-900">${event.event_type}</h4><span class="text-xs text-gray-500">${new Date(event.created_at).toLocaleString()}</span></div>${event.location ? `<p class="text-sm text-gray-600"><i class="fas fa-map-marker-alt fa-fw mr-2"></i>Location: ${event.location}</p>` : ''}${event.flight_id ? `<p class="text-sm text-gray-600"><i class="fas fa-plane fa-fw mr-2"></i>Flight: ${event.flight_id}</p>` : ''}<p class="text-sm text-gray-700 italic mt-1">"${event.description}"</p></div></div>`).join('')}</div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // --- Status Update Logic ---
+        function handleActionButtons(event) {
+            const button = event.target.closest('button');
+            if (!button) return;
+
+            const action = button.dataset.action;
+            const refId = button.dataset.refId;
+
+            if (!action || !refId) return;
+
+            switch (action) {
+                case 'depart':
+                    showStatusModal(refId, 'DEPARTED');
+                    break;
+                case 'arrive':
+                    showStatusModal(refId, 'ARRIVED');
+                    break;
+                case 'deliver':
+                    updateStatus(refId, 'DELIVERED');
+                    break;
+                case 'cancel':
+                    updateStatus(refId, 'CANCELLED');
+                    break;
+            }
+        }
+        
+        function showStatusModal(refId, status) {
+            currentBookingForUpdate = { refId, status };
+            document.getElementById('modalTitle').textContent = `Mark as ${status}`;
+            document.getElementById('modalLocation').value = '';
+            document.getElementById('modalDescription').value = '';
+            document.getElementById('statusUpdateModal').classList.add('active');
+        }
+
+        function hideStatusModal() {
+            document.getElementById('statusUpdateModal').classList.remove('active');
+            currentBookingForUpdate = null;
+        }
+
+        async function handleStatusUpdate() {
+            if (!currentBookingForUpdate) return;
+            const { refId, status } = currentBookingForUpdate;
+            const location = document.getElementById('modalLocation').value.trim().toUpperCase();
+            const description = document.getElementById('modalDescription').value.trim();
+            
+            if (!location && (status === 'DEPARTED' || status === 'ARRIVED')) {
+                showMessage('Location is required for this update.', 'error');
+                return;
+            }
+
+            hideStatusModal();
+            await updateStatus(refId, status, { location, description });
+        }
+        
+        async function updateStatus(refId, status, details = {}) {
+            showLoading(true);
+            try {
+                const payload = { status, ...details };
+                const updatedBooking = await fetchAPI(`/bookings/${refId}/status`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                showMessage(`Booking ${refId} status updated to ${status}.`, 'success');
+                displayBookingDetails(updatedBooking); 
+            } catch (error) {
+                showMessage(`Error updating status: ${error.message}`, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+
+        // --- Helpers ---
+        async function fetchAPI(endpoint, options = {}) {
+            if (authToken) {
+                options.headers = { ...options.headers, 'Authorization': `Bearer ${authToken}` };
+            }
+            const response = await fetch(API_BASE + endpoint, options);
+
+            if (response.status === 401 && authToken) {
+                logout();
+                const errorMsg = 'Your session has expired. Please log in again.';
+                showMessage(errorMsg, 'error');
+                throw new Error(errorMsg);
+            }
+            
+            const data = await response.json();
+            if (!data.success) {
+                throw new Error(data.error || 'API request failed');
+            }
+            return data.data;
+        }
+
+        function showLoading(show) {
+            document.getElementById('loadingOverlay').classList.toggle('active', show);
+        }
+
+        function showMessage(message, type = 'info') {
+            const container = document.getElementById('messageContainer');
+            const color = type === 'error' ? 'bg-red-500' : 'bg-green-500';
+            const icon = type === 'error' ? 'fa-times-circle' : 'fa-check-circle';
+            const div = document.createElement('div');
+            div.className = `${color} text-white px-6 py-4 rounded-lg shadow-lg mb-4 fade-in flex items-center`;
+            div.innerHTML = `<i class="fas ${icon} mr-3"></i><span>${message}</span><button onclick="this.parentElement.remove()" class="ml-auto -mr-2 p-2"><i class="fas fa-times"></i></button>`;
+            container.appendChild(div);
+            setTimeout(() => div.remove(), 5000);
+        }
+    </script>
+</body>
+</html>
+
